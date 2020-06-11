@@ -16,7 +16,8 @@ The configuration file is in `/etc/go-mta/config.ini` or it's the argument when 
 ; The file who contains login
 login = /etc/login.txt
 ; The listen address
-addrs = localhost:25 :446
+addrs = localhost:25 localhost:465
+addrs = :25 :465
 ; Log output directory, by default /var/etc/go-mta/
 out = log/
 
