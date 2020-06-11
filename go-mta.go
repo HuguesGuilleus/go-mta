@@ -39,7 +39,7 @@ func main() {
 		opt.Hosts = append(opt.Hosts, mta.HostOption{
 			Name:         s.Name(),
 			DkimKey:      s.Key("dkim_key").String(),
-			DkimSelector: s.Key("dkim_selecctor").String(),
+			DkimSelector: s.Key("dkim_selector").String(),
 			Cert:         s.Key("crt").String(),
 			Key:          s.Key("key").String(),
 		})
