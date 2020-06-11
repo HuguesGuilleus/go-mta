@@ -10,6 +10,7 @@ import (
 	"github.com/toorop/go-dkim"
 	"io"
 	"net/mail"
+	"net/smtp"
 	"time"
 )
 
@@ -33,7 +34,7 @@ func (m *message) setMeta(r io.Reader) error {
 	ms.Header["Date"] = []string{now.Format(time.RFC1123Z)}
 
 	// Message-Id
-	m.id = fmt.Sprintf("%d@%s", now.Unix(), m.host.name)
+	m.id = fmt.Sprintf("<%d@%s>", now.Unix(), m.host.name)
 	ms.Header["Message-ID"] = []string{m.id}
 
 	// Regenrate the message content.
@@ -55,7 +56,7 @@ func (m *message) setMeta(r io.Reader) error {
 
 	m.content = buff.Bytes()
 
-	return nil
+	return m.dkim()
 }
 
 // dkim create the DKIM signature.
@@ -63,6 +64,25 @@ func (m *message) dkim() error {
 	return dkim.Sign(&m.content, m.host.dkimOption)
 }
 
-func (m *message) WriteTo(w io.Writer) error {
+// Send the message to the smtp.Client.
+func (m *message) send(c *smtp.Client) error {
+	fmt.Println("send message")
+
+	if err := c.Mail(m.from); err != nil {
+		return fmt.Errorf("[ERROR] mail:%s on Client.Mail(): %v", m.id, err)
+	}
+
+	if err := c.Rcpt(m.to); err != nil {
+		return fmt.Errorf("[ERROR] mail:%s on Client.Rcpt(): %v", m.id, err)
+	}
+
+	w, err := c.Data()
+	if err != nil {
+		return fmt.Errorf("[ERROR] mail:%s on Client.Data(): %v", m.id, err)
+	}
+	defer w.Close()
+
+	w.Write(m.content)
+
 	return nil
 }

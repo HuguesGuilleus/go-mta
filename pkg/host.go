@@ -9,12 +9,20 @@ import (
 	"fmt"
 	"github.com/toorop/go-dkim"
 	"io/ioutil"
+	"net"
+	"net/smtp"
+	"strings"
 )
 
 type host struct {
-	name        string
-	dkimOption  dkim.SigOptions
-	certificate []tls.Certificate
+	name         string
+	dkimOption   dkim.SigOptions
+	certificates []tls.Certificate
+}
+
+// for the dev
+func (h *host) Println(args ...interface{}) {
+	fmt.Println(args...)
 }
 
 type HostOption struct {
@@ -39,7 +47,8 @@ func newHost(opt *HostOption) (*host, error) {
 	}
 	h.dkimOption.Domain = opt.Name
 	h.dkimOption.Selector = opt.DkimSelector
-	h.dkimOption.Headers = []string{"from", "to", "date"}
+	h.dkimOption.Canonicalization = "relaxed/relaxed"
+	h.dkimOption.Headers = []string{"from", "to", "date", "message-id", "subject"}
 
 	if k, err := ioutil.ReadFile(opt.DkimKey); err != nil {
 		return nil, fmt.Errorf("Erorr when read Option.DkimKey file: %s", err)
@@ -50,8 +59,60 @@ func newHost(opt *HostOption) (*host, error) {
 	if cert, err := tls.LoadX509KeyPair(opt.Cert, opt.Key); err != nil {
 		return nil, fmt.Errorf("Erorr when load certificate: %s", err)
 	} else {
-		h.certificate = []tls.Certificate{cert}
+		h.certificates = []tls.Certificate{cert}
 	}
 
 	return h, nil
+}
+
+/* CONNEXION */
+
+// Get a valid connexion
+func (h *host) connect(to string, m *message) {
+	mxs, err := net.LookupMX(strings.SplitN(to, "@", 2)[1])
+	if err != nil {
+		h.Println(fmt.Errorf("Error on MX resolution: %v", err))
+		return
+	}
+
+	for _, mx := range mxs {
+		c, err := h.open(mx.Host[:len(mx.Host)-1])
+		if err != nil {
+			h.Println(err)
+			continue
+		}
+		defer c.Close()
+
+		if err := m.send(c); err != nil {
+			h.Println(err)
+			continue
+		}
+
+		h.Println(m.id, "correct delivery")
+		return
+	}
+
+	h.Println("Mail " + m.id + " was not delivery")
+}
+
+// Open a connexion to the server.
+func (h *host) open(serv string) (*smtp.Client, error) {
+	conn, err := smtp.Dial(serv + ":smtp")
+	if err != nil {
+		return nil, fmt.Errorf("[ERROR] on open connexion: %v", err)
+	}
+
+	if err := conn.Hello(h.name); err != nil {
+		return nil, fmt.Errorf("[ERROR] on send hello: %v", err)
+	}
+
+	config := &tls.Config{
+		ServerName:   serv,
+		Certificates: h.certificates,
+	}
+	if err := conn.StartTLS(config); err != nil {
+		return nil, fmt.Errorf("[ERROR] on StartTLS: %v", err)
+	}
+
+	return conn, nil
 }
