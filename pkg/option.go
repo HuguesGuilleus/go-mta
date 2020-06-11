@@ -18,12 +18,25 @@ type Option struct {
 	Hosts []HostOption
 	// Hosts []HostOption
 	Passord string
+
+	AuthTest AuthTest
+	// the file that contain login and password. Used if AuthTest is nil
+	AuthFile string
 }
 
 func Listen(opt *Option) {
 	s := server{
-		l:     log.New(opt.Out, "", log.LstdFlags),
-		hosts: make(map[string]*host, len(opt.Hosts)),
+		l:        log.New(opt.Out, "", log.LstdFlags),
+		hosts:    make(map[string]*host, len(opt.Hosts)),
+		authTest: opt.AuthTest,
+		authFile: opt.AuthFile,
+	}
+
+	if s.authTest == nil {
+		s.authTest = s.auth
+		if s.authFile == "" {
+			log.Fatal("no Option.AuthFile")
+		}
 	}
 
 	for _, opt := range opt.Hosts {

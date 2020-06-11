@@ -14,11 +14,22 @@ import (
 	"net/textproto"
 	"regexp"
 	"strings"
+	"time"
 )
 
 type server struct {
 	l     *log.Logger
 	hosts map[string]*host
+	// Auth function s.auth() or a custom function from Option
+	authTest AuthTest
+	// The list of login and passord used by s.auth()
+	authList map[string]string
+	// The file that contain login and passord
+	authFile string
+	// The modified of the file.
+	authModified time.Time
+	// The last check of the authFile
+	authUpdate time.Time
 }
 
 func (s *server) listen(addr string) {
@@ -64,9 +75,7 @@ func (s *server) newConn(src net.Conn) {
 		c.PrintfLine("500 error when get plain auth")
 		return
 	}
-	// TODO: verify the password
-	log.Println("login, password:", login, password)
-	if false {
+	if !s.authTest(login, password) {
 		c.PrintfLine("530 Auth fail")
 		return
 	}
