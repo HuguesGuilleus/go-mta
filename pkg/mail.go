@@ -66,8 +66,6 @@ func (m *message) dkim() error {
 
 // Send the message to the smtp.Client.
 func (m *message) send(c *smtp.Client) error {
-	fmt.Println("send message")
-
 	if err := c.Mail(m.from); err != nil {
 		return fmt.Errorf("[ERROR] mail:%s on Client.Mail(): %v", m.id, err)
 	}

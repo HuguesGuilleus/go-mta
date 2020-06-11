@@ -35,14 +35,16 @@ type server struct {
 func (s *server) listen(addr string) {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		s.l.Println("Error when listen:", addr, err)
+		s.l.Printf("[LISTEN ERROR] on %q: %v", addr, err)
 		return
 	}
+
+	s.l.Println("[LISTEN]", addr)
 
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			log.Println("Error when open an connexion:", err)
+			s.l.Println("[NEW CONNEXION ERROR]", err)
 			continue
 		}
 		go s.newConn(conn)
@@ -50,10 +52,8 @@ func (s *server) listen(addr string) {
 }
 
 // Get the mail from this connexion and close it.
-// TODO: make log ...
-// TODO: check error for every ReadLine() and PrintfLine()
 func (s *server) newConn(src net.Conn) {
-	log.Println("[NEW CONN]", src.RemoteAddr())
+	s.l.Println("[NEW CONN]", src.RemoteAddr())
 	c := textproto.NewConn(src)
 	defer c.Close()
 
@@ -72,6 +72,7 @@ func (s *server) newConn(src net.Conn) {
 	}
 	login, password, err := getAuth(l)
 	if err != nil {
+		s.l.Println("[AUTH ERROR]", err)
 		c.PrintfLine("500 error when get plain auth")
 		return
 	}
@@ -87,7 +88,6 @@ func (s *server) newConn(src net.Conn) {
 	// Get the Destination
 	l, _ = c.ReadLine()
 	to := regexp.MustCompile(`.*<(.*)>`).ReplaceAllString(l, "$1")
-	log.Printf("to: %#+v\n", to)
 	c.PrintfLine("250 Recipient ok.")
 
 	// Data
@@ -123,7 +123,6 @@ func getAuth(line string) (string, string, error) {
 }
 
 func (s *server) newMessage(login, to string, r io.Reader) {
-	fmt.Println("newMessage()")
 	m := message{
 		host: s.getHost(login),
 		to:   to,
@@ -134,24 +133,20 @@ func (s *server) newMessage(login, to string, r io.Reader) {
 		return
 	}
 
-	fmt.Println("on s'occupe des méta données")
-
 	if err := m.setMeta(r); err != nil {
-		fmt.Println("m.setMeta() error:", err)
+		s.l.Printf("[PREPARE MESSAGE ERROR] from:%q to:%q error:%v",
+			login, to, err)
 		return
 	}
-	fmt.Println("Le message est prêt pour l'envoie")
 
 	m.host.connect(m.to, &m)
 }
 
 func (s *server) getHost(login string) *host {
 	n := regexp.MustCompile(`\w+@`).ReplaceAllString(login, "")
-	log.Printf("n: %#+v\n", n) //////////////
 	h := s.hosts[n]
-	log.Printf("h: %#+v\n", h) //////////////
 	if h == nil {
-		s.l.Println("Unknwon host for", login)
+		s.l.Println("[UNKNWON HOST] for", login)
 	}
 	return h
 }

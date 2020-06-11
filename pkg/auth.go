@@ -34,7 +34,7 @@ func (s *server) loadAuth() {
 		return
 	}
 
-	s.l.Println("[UPDATE AUTH] from:", s.authFile)
+	s.l.Println("[UPDATE AUTH] from", s.authFile)
 	f, err := os.Open(s.authFile)
 	if err != nil {
 		s.l.Printf("[UPDATE AUTH ERROR] file '%s': %v", s.authFile, err)

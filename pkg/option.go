@@ -5,6 +5,7 @@
 package mta
 
 import (
+	"fmt"
 	"io"
 	"log"
 )
@@ -16,15 +17,14 @@ type Option struct {
 	Addrs []string
 	// All the hosts
 	Hosts []HostOption
-	// Hosts []HostOption
-	Passord string
 
 	AuthTest AuthTest
 	// the file that contain login and password. Used if AuthTest is nil
 	AuthFile string
 }
 
-func Listen(opt *Option) {
+// Listen for different hosts on Option.Addrs. Return an error or loop.
+func Listen(opt *Option) error {
 	s := server{
 		l:        log.New(opt.Out, "", log.LstdFlags),
 		hosts:    make(map[string]*host, len(opt.Hosts)),
@@ -35,19 +35,22 @@ func Listen(opt *Option) {
 	if s.authTest == nil {
 		s.authTest = s.auth
 		if s.authFile == "" {
-			log.Fatal("no Option.AuthFile")
+			return fmt.Errorf("[INIT] no Option.AuthFile")
 		}
 	}
 
 	for _, opt := range opt.Hosts {
 		h, err := newHost(&opt)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
+		h.l = s.l
 		s.hosts[opt.Name] = h
 	}
 
 	for _, a := range opt.Addrs {
 		go s.listen(a)
 	}
+
+	select {}
 }

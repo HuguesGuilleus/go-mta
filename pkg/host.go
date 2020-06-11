@@ -9,20 +9,17 @@ import (
 	"fmt"
 	"github.com/toorop/go-dkim"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/smtp"
 	"strings"
 )
 
 type host struct {
+	l            *log.Logger
 	name         string
 	dkimOption   dkim.SigOptions
 	certificates []tls.Certificate
-}
-
-// for the dev
-func (h *host) Println(args ...interface{}) {
-	fmt.Println(args...)
 }
 
 type HostOption struct {
@@ -38,7 +35,7 @@ type HostOption struct {
 
 func newHost(opt *HostOption) (*host, error) {
 	if opt.Name == "" || opt.DkimSelector == "" {
-		return nil, fmt.Errorf("HostOption Nmae or DkimSelector is empty")
+		return nil, fmt.Errorf("[INIT HOST ERROR] Name or DkimSelector is empty")
 	}
 
 	h := &host{
@@ -51,13 +48,13 @@ func newHost(opt *HostOption) (*host, error) {
 	h.dkimOption.Headers = []string{"from", "to", "date", "message-id", "subject"}
 
 	if k, err := ioutil.ReadFile(opt.DkimKey); err != nil {
-		return nil, fmt.Errorf("Erorr when read Option.DkimKey file: %s", err)
+		return nil, fmt.Errorf("[INIT HOST ERROR] DKIM key file: %s", err)
 	} else {
 		h.dkimOption.PrivateKey = k
 	}
 
 	if cert, err := tls.LoadX509KeyPair(opt.Cert, opt.Key); err != nil {
-		return nil, fmt.Errorf("Erorr when load certificate: %s", err)
+		return nil, fmt.Errorf("[INIT HOST ERROR] certificate: %s", err)
 	} else {
 		h.certificates = []tls.Certificate{cert}
 	}
@@ -71,28 +68,28 @@ func newHost(opt *HostOption) (*host, error) {
 func (h *host) connect(to string, m *message) {
 	mxs, err := net.LookupMX(strings.SplitN(to, "@", 2)[1])
 	if err != nil {
-		h.Println(fmt.Errorf("Error on MX resolution: %v", err))
+		h.l.Println(fmt.Errorf("[MX RESOLUTION ERROR] for %q: %v", to, err))
 		return
 	}
 
 	for _, mx := range mxs {
 		c, err := h.open(mx.Host[:len(mx.Host)-1])
 		if err != nil {
-			h.Println(err)
+			h.l.Println(err)
 			continue
 		}
 		defer c.Close()
 
 		if err := m.send(c); err != nil {
-			h.Println(err)
+			h.l.Println(err)
 			continue
 		}
 
-		h.Println(m.id, "correct delivery")
+		h.l.Printf("[DELIVER] %s from:%q to:%q", m.id, m.from, m.to)
 		return
 	}
 
-	h.Println("Mail " + m.id + " was not delivery")
+	h.l.Printf("[NO DELIVER] %s from:%q to:%q", m.id, m.from, m.to)
 }
 
 // Open a connexion to the server.
@@ -103,7 +100,7 @@ func (h *host) open(serv string) (*smtp.Client, error) {
 	}
 
 	if err := conn.Hello(h.name); err != nil {
-		return nil, fmt.Errorf("[ERROR] on send hello: %v", err)
+		return nil, fmt.Errorf("[ERROR] on send HELLO: %v", err)
 	}
 
 	config := &tls.Config{
