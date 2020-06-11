@@ -7,13 +7,14 @@ package mta
 import (
 	"bytes"
 	"fmt"
+	"github.com/toorop/go-dkim"
 	"io"
 	"net/mail"
 	"time"
 )
 
 type message struct {
-	host     host
+	host     *host
 	to, from string
 	id       string
 
@@ -55,6 +56,11 @@ func (m *message) setMeta(r io.Reader) error {
 	m.content = buff.Bytes()
 
 	return nil
+}
+
+// dkim create the DKIM signature.
+func (m *message) dkim() error {
+	return dkim.Sign(&m.content, m.host.dkimOption)
 }
 
 func (m *message) WriteTo(w io.Writer) error {
